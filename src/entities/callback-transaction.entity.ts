@@ -23,7 +23,7 @@ export class CallbackTransaction {
   @Column({ name: 'renFlag', type: 'varchar', length: 10, nullable: true })
   renFlag: string | null;
 
-  @Column({ name: 'requestNo', type: 'varchar', length: 200, unique: true })
+  @Column({ name: 'requestNo', type: 'varchar', length: 200 })
   requestNo: string;
 
   @Column({ name: 'log_time', type: 'timestamp' })
@@ -37,8 +37,8 @@ export class CallbackTransaction {
   })
   optionalParameter3: string | null;
 
-  @Column({ name: 'sequenceNo', type: 'varchar', length: 64, nullable: true })
-  sequenceNo: string | null;
+  @Column({ name: 'sequenceNumber', type: 'varchar', length: 64, nullable: true })
+  sequenceNumber: string | null;
 
   @Column({ name: 'callingParty', type: 'varchar', length: 20, nullable: true })
   callingParty: string | null;
@@ -85,8 +85,24 @@ export class CallbackTransaction {
   @Column({ name: 'validityDays', type: 'integer', nullable: true })
   validityDays: number | null;
 
-  @Column({ name: 'status', type: 'varchar', length: 50, nullable: true })
-  status: string | null;
+  @Column({ name: 'result', type: 'varchar', length: 50, nullable: true })
+  result: string | null;
+
+  @Column({
+    name: 'transactionId',
+    type: 'varchar',
+    length: 200,
+    nullable: true,
+  })
+  transactionId: string | null;
+
+  @Column({
+    name: 'notificationType',
+    type: 'varchar',
+    length: 50,
+    nullable: true,
+  })
+  notificationType: string | null;
 
   @Column({ name: 'action_type', type: 'varchar', length: 20, nullable: true })
   actionType: string | null;
