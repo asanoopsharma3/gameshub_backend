@@ -1,23 +1,44 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  Post,
+  Query,
+} from '@nestjs/common';
 import { CallbackService } from './callback.service';
-import { resolveCallbackObjectsFromQuery } from './callback-payload.util';
+import {
+  resolveCallbackObjectsFromPost,
+  resolveCallbackObjectsFromQuery,
+} from './callback-payload.util';
 
 @Controller('callback')
 export class CallbackController {
   constructor(private readonly callbackService: CallbackService) {}
 
   /**
-   * GET only — all input via query parameters:
-   * - Flat params and/or JSON in any param (`data`, `code`, etc.).
-   * - Partner format: `?code=268012...","sequenceNumber":"...","data":{...},...`
-   * - Top-level values win; missing fields fall back to `data.<field>`.
-   * - Duplicate `requestNo` rows are always inserted (no skip).
+   * GET — flat params and/or JSON in query (`data`, `code`, partner fragment).
    */
   @Get()
-  async callback(
+  async callbackGet(
     @Query() query: Record<string, string | string[] | undefined>,
   ) {
     const objects = resolveCallbackObjectsFromQuery(query);
+    const result = await this.callbackService.insertFromPayloads(objects);
+    return { ok: true, ...result };
+  }
+
+  /**
+   * POST — JSON body with `code`, `sequenceNumber`, `data`, …
+   * Query: `code`, `transactionId`, `notificationType` (override body).
+   */
+  @Post()
+  @HttpCode(200)
+  async callbackPost(
+    @Body() body: unknown,
+    @Query() query: Record<string, string | string[] | undefined>,
+  ) {
+    const objects = resolveCallbackObjectsFromPost(body, query);
     const result = await this.callbackService.insertFromPayloads(objects);
     return { ok: true, ...result };
   }

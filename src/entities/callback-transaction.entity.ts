@@ -76,6 +76,9 @@ export class CallbackTransaction {
   @Column({ name: 'serviceId', type: 'varchar', length: 50, nullable: true })
   serviceId: string | null;
 
+  @Column({ name: 'code', type: 'varchar', length: 50, nullable: true })
+  code: string | null;
+
   @Column({ name: 'keyword', type: 'varchar', length: 50, nullable: true })
   keyword: string | null;
 

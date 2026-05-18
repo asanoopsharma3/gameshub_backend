@@ -32,11 +32,43 @@ describe('CallbackController (e2e)', () => {
     return request(app.getHttpServer()).get('/api/v1/callback').expect(400);
   });
 
-  it('POST /api/v1/callback returns 404', () => {
+  it('POST /api/v1/callback without body returns 400', () => {
     return request(app.getHttpServer())
       .post('/api/v1/callback')
-      .send({ requestNo: 'x' })
-      .expect(404);
+      .query({
+        code: '268012000007097',
+        transactionId: 'rrt-empty',
+        notificationType: 'SUBSCRIBE',
+      })
+      .send({})
+      .expect(400);
+  });
+
+  it('POST /api/v1/callback body + query params inserts row', async () => {
+    const requestNo = uniqueRequestNo('e2e-post-');
+    const res = await request(app.getHttpServer())
+      .post('/api/v1/callback')
+      .query({
+        code: '268012000007097',
+        transactionId: `rrt-${requestNo}`,
+        notificationType: 'SUBSCRIBE',
+      })
+      .send({
+        sequenceNumber: '4fb0e13c-adbf-53f9-9dd2-96a2f6d3f1d4',
+        data: {
+          serviceType: 'games_Games_98',
+          requestNo,
+          result: 'Success',
+          chargeAmount: '1.0',
+          msisdn: '26878146285',
+          serviceId: '268012000007097',
+        },
+      })
+      .expect(200);
+
+    expect(res.body.ok).toBe(true);
+    expect(res.body.inserted.length).toBeGreaterThanOrEqual(1);
+    expect(res.body.errors).toEqual([]);
   });
 
   it('GET /api/v1/callback partner code fragment inserts row', async () => {

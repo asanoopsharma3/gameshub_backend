@@ -73,7 +73,8 @@ export class CallbackService {
     entity.chargeAmount = chargeAmount;
     entity.serviceNode = str(row.serviceNode);
     entity.msisdn = str(row.msisdn);
-    entity.serviceId = str(row.serviceId) ?? str(row.code);
+    entity.serviceId = str(row.serviceId);
+    entity.code = str(row.code);
     entity.keyword = str(row.keyword);
     entity.category = str(row.category);
     entity.validityDays = parseOptionalInt(row.validityDays);

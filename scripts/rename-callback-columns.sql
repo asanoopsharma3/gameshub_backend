@@ -8,6 +8,9 @@ ALTER TABLE callback_transactions
   RENAME COLUMN status TO result;
 
 ALTER TABLE callback_transactions
+  ADD COLUMN IF NOT EXISTS code varchar(50);
+
+ALTER TABLE callback_transactions
   ADD COLUMN IF NOT EXISTS "transactionId" varchar(200);
 
 ALTER TABLE callback_transactions

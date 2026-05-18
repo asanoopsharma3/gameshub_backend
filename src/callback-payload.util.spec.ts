@@ -1,6 +1,7 @@
 import {
   normalizeCallbackRow,
   parseJsonFragmentFromCodeValue,
+  resolveCallbackObjectsFromPost,
   resolveCallbackObjectsFromQuery,
 } from './callback-payload.util';
 
@@ -67,6 +68,57 @@ describe('callback-payload.util', () => {
     expect(rows[0].transactionId).toBe(
       'rrt-8917434836422684028-d-geu1-64532-703588-1',
     );
+  });
+
+  it('resolves POST body and overlays code, transactionId, notificationType from query', () => {
+    const rows = resolveCallbackObjectsFromPost(
+      {
+        sequenceNumber: '4fb0e13c-adbf-53f9-9dd2-96a2f6d3f1d4',
+        data: {
+          serviceType: 'games_Games_98',
+          requestNo: '4003562882605151927',
+          result: 'Success',
+          chargeAmount: '1.0',
+          msisdn: '26878146285',
+          serviceId: '268012000007097',
+        },
+      },
+      {
+        code: '268012000007097',
+        transactionId: 'rrt-8917434836422684028-d-geu1-64532-703588-1',
+        notificationType: 'SUBSCRIBE',
+      },
+    );
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0].requestNo).toBe('4003562882605151927');
+    expect(rows[0].code).toBe('268012000007097');
+    expect(rows[0].serviceType).toBe('games_Games_98');
+    expect(rows[0].transactionId).toBe(
+      'rrt-8917434836422684028-d-geu1-64532-703588-1',
+    );
+    expect(rows[0].notificationType).toBe('SUBSCRIBE');
+    expect(rows[0].sequenceNumber).toBe('4fb0e13c-adbf-53f9-9dd2-96a2f6d3f1d4');
+  });
+
+  it('query params override POST body for code, transactionId, notificationType', () => {
+    const rows = resolveCallbackObjectsFromPost(
+      {
+        code: 'body-code',
+        transactionId: 'body-tx',
+        notificationType: 'UNSUBSCRIBE',
+        data: { requestNo: '1', result: 'Success' },
+      },
+      {
+        code: 'query-code',
+        transactionId: 'query-tx',
+        notificationType: 'SUBSCRIBE',
+      },
+    );
+
+    expect(rows[0].code).toBe('query-code');
+    expect(rows[0].transactionId).toBe('query-tx');
+    expect(rows[0].notificationType).toBe('SUBSCRIBE');
   });
 
   it('merges flat query params with JSON data param', () => {

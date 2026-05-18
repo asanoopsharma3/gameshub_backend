@@ -157,3 +157,58 @@ export function resolveCallbackObjectsFromQuery(
 
   return [normalized];
 }
+
+const POST_QUERY_OVERLAY_KEYS = [
+  'code',
+  'transactionId',
+  'notificationType',
+] as const;
+
+function parseBodyToObjects(body: unknown): Record<string, unknown>[] {
+  if (typeof body === 'string') {
+    const trimmed = body.trim();
+    if (!trimmed) return [];
+    const parsed = tryParseJson(trimmed);
+    if (parsed === undefined) {
+      throw new BadRequestException('Invalid JSON body.');
+    }
+    return objectsFromParsed(parsed);
+  }
+  return objectsFromParsed(body);
+}
+
+/**
+ * POST — JSON body (`code`, `sequenceNumber`, `data`, …) with optional query
+ * overlay for `code`, `transactionId`, and `notificationType` (query wins).
+ */
+export function resolveCallbackObjectsFromPost(
+  body: unknown,
+  query: Record<string, string | string[] | undefined>,
+): Record<string, unknown>[] {
+  const rows = parseBodyToObjects(body);
+  if (!rows.length) {
+    throw new BadRequestException(
+      'Provide a JSON body with code, sequenceNumber, and data.',
+    );
+  }
+
+  const overlay: Record<string, unknown> = {};
+  for (const key of POST_QUERY_OVERLAY_KEYS) {
+    const s = firstQueryValue(query[key]);
+    if (s) overlay[key] = s;
+  }
+
+  const normalized = rows.map((row) =>
+    normalizeCallbackRow(shallowMerge(row, overlay)),
+  );
+
+  for (const row of normalized) {
+    if (!isPresent(row.requestNo)) {
+      throw new BadRequestException(
+        'requestNo is required (body data.requestNo).',
+      );
+    }
+  }
+
+  return normalized;
+}
