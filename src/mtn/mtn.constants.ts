@@ -1,8 +1,8 @@
 /** Static subscription body — make dynamic via API later. MSISDN stays in URL per request. */
 export const MTN_SUBSCRIPTION_PAYLOAD = {
-  subscriptionId: '268012000007097',
+  subscriptionId: '26801220000007822',
   subscriptionProviderId: 'CSM',
-  subscriptionName: 'Daily Pack',
+  subscriptionName: 'gameshub',
   registrationChannel: 'WAP',
   subscriptionPaymentSource: 'Airtime',
   sendSMSNotification: 'true',
