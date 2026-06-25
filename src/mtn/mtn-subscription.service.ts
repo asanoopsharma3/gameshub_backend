@@ -2,49 +2,62 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { CallbackTransaction } from '../entities/callback-transaction.entity';
+import { SubscriptionMisdn } from '../entities/subscription-misdn.entity';
 import { MtnAuthService } from './mtn-auth.service';
 import { MTN_SUBSCRIPTION_PAYLOAD } from './mtn.constants';
 
-export type MtnSubscriptionResponse = {
-  subscriptionName?: string;
-  registrationChannel?: string;
-  amountCharged?: number;
-  sendSMSNotification?: boolean;
-  autoRenew?: boolean;
-  amountBefore?: number;
-  amountAfter?: number;
-  correlationId?: string;
-  nonGSM?: boolean;
-  status?: string;
-  customerId?: string;
-  cvmoffer?: boolean;
-  statusCode?: string;
-  statusMessage?: string;
-};
+export type MtnSubscriptionApiResponse = Record<string, unknown>;
 
 export type MtnSubscriptionResult = {
   ok: boolean;
   statusCode: string | null;
   statusMessage: string | null;
   amountCharged: string;
-  response: MtnSubscriptionResponse | Record<string, unknown> | null;
+  response: MtnSubscriptionApiResponse | null;
   errorMessage: string | null;
   transactionId: string;
 };
-
-function todayDateString(): string {
-  const d = new Date();
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-}
 
 function formatMoney(v: unknown): string {
   const n = Number(v);
   if (Number.isNaN(n)) return '0.00';
   return n.toFixed(2);
+}
+
+function str(v: unknown): string | null {
+  if (v === undefined || v === null) return null;
+  const s = String(v).trim();
+  return s.length ? s : null;
+}
+
+function bool(v: unknown): boolean | null {
+  if (v === undefined || v === null) return null;
+  if (typeof v === 'boolean') return v;
+  if (v === 'true') return true;
+  if (v === 'false') return false;
+  return null;
+}
+
+function optionalMoney(v: unknown): string | null {
+  if (v === undefined || v === null) return null;
+  return formatMoney(v);
+}
+
+function extractStatusMessage(r: MtnSubscriptionApiResponse): string | null {
+  const statusMessage = str(r.statusMessage);
+  if (statusMessage) return statusMessage;
+
+  const status = str(r.status);
+  const statusCode = str(r.statusCode);
+  if (status && statusCode && status !== statusCode) return status;
+
+  return null;
+}
+
+function extractStatusText(r: MtnSubscriptionApiResponse): string | null {
+  const status = r.status;
+  if (status === undefined || status === null) return null;
+  return String(status);
 }
 
 @Injectable()
@@ -54,13 +67,14 @@ export class MtnSubscriptionService {
   constructor(
     private readonly config: ConfigService,
     private readonly authService: MtnAuthService,
-    @InjectRepository(CallbackTransaction)
-    private readonly callbackRepo: Repository<CallbackTransaction>,
+    @InjectRepository(SubscriptionMisdn)
+    private readonly subscriptionMisdnRepo: Repository<SubscriptionMisdn>,
   ) {}
 
   async subscribe(
     msisdn: string,
     transactionId: string,
+    planId: string,
   ): Promise<MtnSubscriptionResult> {
     const baseUrl = this.config.get<string>(
       'MTN_API_BASE_URL',
@@ -74,9 +88,14 @@ export class MtnSubscriptionService {
 
     const token = await this.authService.getAccessToken();
     const url = `${baseUrl}/v2/customers/${msisdn}/subscriptions`;
-    const payload = { ...MTN_SUBSCRIPTION_PAYLOAD };
+    const payload = {
+      ...MTN_SUBSCRIPTION_PAYLOAD,
+      subscriptionId: planId,
+    };
 
-    this.logger.debug(`MTN subscribe msisdn=${msisdn} transactionId=${transactionId}`);
+    this.logger.debug(
+      `MTN subscribe msisdn=${msisdn} subscriptionId=${planId} transactionId=${transactionId}`,
+    );
 
     try {
       const response = await fetch(url, {
@@ -91,41 +110,47 @@ export class MtnSubscriptionService {
       });
 
       const text = await response.text();
-      let data: MtnSubscriptionResponse | Record<string, unknown> | null = null;
+      let data: MtnSubscriptionApiResponse | null = null;
 
       try {
-        data = text ? (JSON.parse(text) as MtnSubscriptionResponse) : null;
+        data = text ? (JSON.parse(text) as MtnSubscriptionApiResponse) : null;
       } catch {
         data = { raw: text };
       }
 
-      if (!response.ok) {
-        const errorMessage =
-          (data as MtnSubscriptionResponse)?.statusMessage ??
-          `HTTP ${response.status}: ${text.slice(0, 500)}`;
+      const parsed = data ?? {};
+      const statusCode =
+        str(parsed.statusCode) ??
+        (response.ok ? str(parsed.status) : String(response.status));
+      const statusMessage =
+        extractStatusMessage(parsed) ??
+        (!response.ok
+          ? `HTTP ${response.status}: ${text.slice(0, 500)}`
+          : null);
+      const amountCharged = formatMoney(parsed.amountCharged ?? 0);
+      const isSuccess = statusCode === '0000';
 
+      if (!response.ok) {
         return {
           ok: false,
-          statusCode: (data as MtnSubscriptionResponse)?.statusCode ?? String(response.status),
-          statusMessage: errorMessage,
-          amountCharged: '0.00',
+          statusCode,
+          statusMessage,
+          amountCharged,
           response: data,
-          errorMessage,
+          errorMessage: statusMessage ?? 'Subscription failed',
           transactionId,
         };
       }
 
-      const parsed = data as MtnSubscriptionResponse;
-      const statusCode = parsed.statusCode ?? parsed.status ?? null;
-      const isSuccess = statusCode === '0000';
-
       return {
         ok: isSuccess,
         statusCode,
-        statusMessage: parsed.statusMessage ?? null,
-        amountCharged: formatMoney(parsed.amountCharged ?? 0),
-        response: parsed,
-        errorMessage: isSuccess ? null : (parsed.statusMessage ?? 'Subscription failed'),
+        statusMessage,
+        amountCharged,
+        response: data,
+        errorMessage: isSuccess
+          ? null
+          : (statusMessage ?? 'Subscription failed'),
         transactionId,
       };
     } catch (e) {
@@ -143,34 +168,40 @@ export class MtnSubscriptionService {
     }
   }
 
-  async saveToCallbackTransaction(
+  async saveToSubscriptionMisdn(
     msisdn: string,
-    transactionId: string,
+    planId: string,
     result: MtnSubscriptionResult,
   ): Promise<string> {
-    const response = result.response as MtnSubscriptionResponse | null;
-    const chargeAmount = result.amountCharged;
-    const chargeNum = Number(chargeAmount);
+    const r = result.response ?? {};
 
-    const entity = new CallbackTransaction();
-    entity.serviceType = 'MTN_SUBSCRIPTION';
-    entity.requestNo = transactionId;
-    entity.logTime = new Date();
+    const entity = new SubscriptionMisdn();
     entity.msisdn = msisdn;
-    entity.callingParty = msisdn;
-    entity.chargeAmount = chargeAmount;
-    entity.code = result.statusCode;
-    entity.result = result.statusMessage;
-    entity.transactionId = response?.correlationId ?? transactionId;
-    entity.requestedPlan = response?.subscriptionName ?? null;
-    entity.appliededPlan = response?.subscriptionName ?? null;
-    entity.operationId = 'SUBSCRIBE';
-    entity.bearerId = MTN_SUBSCRIPTION_PAYLOAD.registrationChannel;
-    entity.eventDate = todayDateString();
-    entity.isChargeable = chargeNum > 0;
-    entity.notificationType = 'MTN_API';
+    entity.planId = planId;
+    entity.logTime = new Date();
+    entity.customerId = msisdn;
 
-    const saved = await this.callbackRepo.save(entity);
+    entity.statusCode = str(r.statusCode) ?? result.statusCode;
+    entity.statusMessage = extractStatusMessage(r) ?? result.statusMessage;
+    entity.status = extractStatusText(r);
+    entity.httpStatus = str(r.httpStatus);
+
+    entity.subscriptionName = str(r.subscriptionName);
+    entity.registrationChannel =
+      str(r.registrationChannel) ??
+      MTN_SUBSCRIPTION_PAYLOAD.registrationChannel;
+    entity.amountCharged = optionalMoney(r.amountCharged) ?? result.amountCharged;
+    entity.sendSmsNotification = bool(r.sendSMSNotification);
+    entity.autoRenew = bool(r.autoRenew);
+    entity.amountBefore = optionalMoney(r.amountBefore);
+    entity.amountAfter = optionalMoney(r.amountAfter);
+    entity.nonGsm = bool(r.nonGSM);
+    entity.cvmoffer = bool(r.cvmoffer);
+    entity.serviceNode = str(r.nodeId);
+
+    entity.responsePayload = result.response;
+
+    const saved = await this.subscriptionMisdnRepo.save(entity);
     return saved.id;
   }
 }

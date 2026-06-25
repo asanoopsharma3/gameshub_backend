@@ -5,7 +5,6 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { randomUUID } from 'crypto';
 import * as fs from 'fs';
 import { Repository } from 'typeorm';
 import {
@@ -15,6 +14,7 @@ import {
 import { MtnSubscriptionQueue } from '../entities/mtn-subscription-queue.entity';
 import { MtnExcelService } from './mtn-excel.service';
 import { MTN_ENQUEUE_CHUNK_SIZE } from './mtn.constants';
+import { generateUniqueMtnRequestTransactionIds } from './mtn-transaction-id.util';
 import {
   resolveStoragePath,
   toRelativeStoragePath,
@@ -44,8 +44,8 @@ export class MtnBatchService {
     const absolutePath = file.path;
     const storedPath = toRelativeStoragePath(absolutePath);
 
-    const msisdns = this.excelService.readMsisdnsFromFile(absolutePath);
-    if (msisdns.length > MAX_MSISDN_PER_BATCH) {
+    const rows = this.excelService.readSubscriptionRowsFromFile(absolutePath);
+    if (rows.length > MAX_MSISDN_PER_BATCH) {
       fs.unlinkSync(absolutePath);
       throw new BadRequestException(
         `Maximum ${MAX_MSISDN_PER_BATCH} MSISDNs allowed per upload`,
@@ -55,17 +55,17 @@ export class MtnBatchService {
     const batch = await this.batchRepo.save({
       originalFilename: file.originalname,
       filePath: storedPath,
-      totalCount: msisdns.length,
+      totalCount: rows.length,
       processedCount: 0,
       successCount: 0,
       failedCount: 0,
       status: 'pending' as MtnBatchStatus,
     });
 
-    await this.enqueueMsisdns(batch.id, msisdns);
+    await this.enqueueRows(batch.id, rows);
 
     this.logger.log(
-      `Batch ${batch.id} saved file=${storedPath} msisdns=${msisdns.length}`,
+      `Batch ${batch.id} saved file=${storedPath} rows=${rows.length}`,
     );
 
     return this.getBatch(batch.id);
@@ -100,22 +100,24 @@ export class MtnBatchService {
     return resolveStoragePath(batch.filePath);
   }
 
-  private async enqueueMsisdns(
+  private async enqueueRows(
     batchId: string,
-    msisdns: string[],
+    rows: { msisdn: string; planId: string }[],
   ): Promise<void> {
-    for (let i = 0; i < msisdns.length; i += MTN_ENQUEUE_CHUNK_SIZE) {
-      const slice = msisdns.slice(i, i + MTN_ENQUEUE_CHUNK_SIZE);
-      const rows = slice.map((msisdn) => ({
+    for (let i = 0; i < rows.length; i += MTN_ENQUEUE_CHUNK_SIZE) {
+      const slice = rows.slice(i, i + MTN_ENQUEUE_CHUNK_SIZE);
+      const transactionIds = generateUniqueMtnRequestTransactionIds(slice.length);
+      const queueRows = slice.map((row, index) => ({
         batchId,
-        msisdn,
-        transactionId: randomUUID(),
+        msisdn: row.msisdn,
+        planId: row.planId,
+        transactionId: transactionIds[index],
         status: 'pending' as const,
         attempts: 0,
         amountCharged: '0.00',
       }));
 
-      await this.queueRepo.insert(rows);
+      await this.queueRepo.insert(queueRows);
     }
   }
 

@@ -32,7 +32,7 @@ export class MtnSubscriptionQueue {
   @Column({ type: 'varchar', length: 20 })
   msisdn: string;
 
-  @Column({ name: 'transaction_id', type: 'varchar', length: 64 })
+  @Column({ name: 'transaction_id', type: 'varchar', length: 8, unique: true })
   transactionId: string;
 
   @Column({ type: 'varchar', length: 20, default: 'pending' })
@@ -62,12 +62,15 @@ export class MtnSubscriptionQueue {
   @Column({ name: 'error_message', type: 'text', nullable: true })
   errorMessage: string | null;
 
+  @Column({ name: 'plan_id', type: 'varchar', length: 50, nullable: true })
+  planId: string | null;
+
   @Column({
-    name: 'callback_transaction_id',
+    name: 'subscription_misdn_id',
     type: 'bigint',
     nullable: true,
   })
-  callbackTransactionId: string | null;
+  subscriptionMisdnId: string | null;
 
   @Column({ name: 'processed_at', type: 'timestamp', nullable: true })
   processedAt: Date | null;

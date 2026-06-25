@@ -8,6 +8,7 @@ import { CallbackTransaction } from './entities/callback-transaction.entity';
 import { MtnSubscriptionBatch } from './entities/mtn-subscription-batch.entity';
 import { MtnSubscriptionQueue } from './entities/mtn-subscription-queue.entity';
 import { MtnTokenCache } from './entities/mtn-token-cache.entity';
+import { SubscriptionMisdn } from './entities/subscription-misdn.entity';
 import { LoggingModule } from './logging/logging.module';
 import { MtnModule } from './mtn/mtn.module';
 
@@ -40,6 +41,7 @@ function envBool(
             MtnSubscriptionBatch,
             MtnSubscriptionQueue,
             MtnTokenCache,
+            SubscriptionMisdn,
           ],
           synchronize: false,
           logging: envBool(config, 'DB_LOGGING'),

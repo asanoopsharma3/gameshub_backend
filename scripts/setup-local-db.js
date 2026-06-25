@@ -37,10 +37,18 @@ if (!localHosts.has(host)) {
   process.exit(1);
 }
 
-const sql = fs.readFileSync(
-  path.join(__dirname, 'create-mtn-subscription-tables.sql'),
-  'utf8',
-);
+const sqlFiles = [
+  'create-mtn-subscription-tables.sql',
+  'create-subscription-misdn-table.sql',
+  'alter-subscription-misdns-response-columns.sql',
+  'alter-mtn-queue-transaction-id.sql',
+];
+
+const sql = sqlFiles
+  .map((f) =>
+    fs.readFileSync(path.join(__dirname, f), 'utf8'),
+  )
+  .join('\n');
 
 const client = new Client({
   host,

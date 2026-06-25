@@ -46,15 +46,24 @@ export class MtnController {
   @Post('batches/:id/subscribe')
   async subscribeBatch(@Param('id') id: string) {
     const batch = await this.batchService.startSubscription(id);
+    const processing = await this.queueService.processAllPending();
+    const batchAfter = await this.batchService.getBatch(batch.id);
+    const queueSummary = await this.batchService.getBatchQueueSummary(id);
+
     return {
       ok: true,
       batch: {
-        id: batch.id,
-        filePath: batch.filePath,
-        totalCount: batch.totalCount,
-        status: batch.status,
+        id: batchAfter.id,
+        filePath: batchAfter.filePath,
+        totalCount: batchAfter.totalCount,
+        processedCount: batchAfter.processedCount,
+        successCount: batchAfter.successCount,
+        failedCount: batchAfter.failedCount,
+        status: batchAfter.status,
       },
-      message: 'Subscription queue processing started.',
+      queueSummary,
+      processing,
+      message: 'All batch rows processed.',
     };
   }
 
@@ -100,7 +109,7 @@ export class MtnController {
 
   @Post('queue/process')
   async processQueueNow() {
-    const result = await this.queueService.processNextChunk();
+    const result = await this.queueService.processAllPending();
     return { ok: true, ...result };
   }
 }

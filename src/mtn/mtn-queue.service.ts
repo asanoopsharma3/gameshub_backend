@@ -62,15 +62,26 @@ export class MtnQueueService {
         processed++;
 
         try {
+          if (!job.planId) {
+            await this.queueRepo.update(job.id, {
+              status: 'failed',
+              errorMessage: 'plan_id is required (upload Excel with misdn and plan_id columns)',
+              processedAt: new Date(),
+            });
+            failed++;
+            continue;
+          }
+
           const result = await this.subscriptionService.subscribe(
             job.msisdn,
             job.transactionId,
+            job.planId,
           );
 
-          const callbackId =
-            await this.subscriptionService.saveToCallbackTransaction(
+          const subscriptionMisdnId =
+            await this.subscriptionService.saveToSubscriptionMisdn(
               job.msisdn,
-              job.transactionId,
+              job.planId,
               result,
             );
 
@@ -83,7 +94,7 @@ export class MtnQueueService {
               ? (result.response as object)
               : null,
             errorMessage: result.errorMessage,
-            callbackTransactionId: callbackId,
+            subscriptionMisdnId,
             processedAt: new Date(),
           });
 
@@ -121,6 +132,37 @@ export class MtnQueueService {
     }
 
     return { processed, succeeded, failed };
+  }
+
+  /** Process queue until no pending jobs remain (all batch rows). */
+  async processAllPending(maxRounds = 500): Promise<{
+    processed: number;
+    succeeded: number;
+    failed: number;
+    rounds: number;
+  }> {
+    let processed = 0;
+    let succeeded = 0;
+    let failed = 0;
+    let rounds = 0;
+
+    while (rounds < maxRounds) {
+      const round = await this.processNextChunk();
+      if (round.processed === 0) break;
+
+      processed += round.processed;
+      succeeded += round.succeeded;
+      failed += round.failed;
+      rounds++;
+    }
+
+    if (processed > 0) {
+      this.logger.log(
+        `Queue drain done: processed=${processed} succeeded=${succeeded} failed=${failed} rounds=${rounds}`,
+      );
+    }
+
+    return { processed, succeeded, failed, rounds };
   }
 
   async getQueueStats(): Promise<{

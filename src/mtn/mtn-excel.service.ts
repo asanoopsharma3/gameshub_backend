@@ -5,6 +5,7 @@ import * as XLSX from 'xlsx';
 
 const MSISDN_HEADER_NAMES = [
   'msisdn',
+  'misdn',
   'phone',
   'mobile',
   'number',
@@ -13,9 +14,22 @@ const MSISDN_HEADER_NAMES = [
   'subscriber',
 ];
 
+const PLAN_ID_HEADER_NAMES = [
+  'plan_id',
+  'planid',
+  'plan',
+  'subscription_id',
+  'subscriptionid',
+];
+
+export type MtnSubscriptionRow = {
+  msisdn: string;
+  planId: string;
+};
+
 @Injectable()
 export class MtnExcelService {
-  readMsisdnsFromFile(filePath: string): string[] {
+  readSubscriptionRowsFromFile(filePath: string): MtnSubscriptionRow[] {
     if (!fs.existsSync(filePath)) {
       throw new BadRequestException(`File not found: ${filePath}`);
     }
@@ -44,53 +58,67 @@ export class MtnExcelService {
       throw new BadRequestException('Excel sheet is empty');
     }
 
-    const { startRow, colIndex } = this.resolveColumnLayout(rows);
-    const seen = new Set<string>();
-    const msisdns: string[] = [];
+    const layout = this.resolveColumnLayout(rows);
+    if (layout.planIdColIndex < 0) {
+      throw new BadRequestException(
+        'Excel must include a plan_id column (headers: misdn, plan_id)',
+      );
+    }
 
-    for (let i = startRow; i < rows.length; i++) {
+    const seen = new Set<string>();
+    const subscriptionRows: MtnSubscriptionRow[] = [];
+
+    for (let i = layout.startRow; i < rows.length; i++) {
       const row = rows[i];
       if (!Array.isArray(row)) continue;
 
-      const raw = row[colIndex];
-      const normalized = this.normalizeMsisdn(raw);
-      if (!normalized || seen.has(normalized)) continue;
-      seen.add(normalized);
-      msisdns.push(normalized);
+      const rawMsisdn = row[layout.msisdnColIndex];
+      const normalized = this.normalizeMsisdn(rawMsisdn);
+      if (!normalized) continue;
+
+      const planId = this.normalizePlanId(row[layout.planIdColIndex]);
+      if (!planId) {
+        throw new BadRequestException(
+          `Row ${i + 1}: plan_id is required for msisdn ${normalized}`,
+        );
+      }
+
+      const rowKey = `${normalized}|${planId}`;
+      if (seen.has(rowKey)) continue;
+
+      seen.add(rowKey);
+      subscriptionRows.push({ msisdn: normalized, planId });
     }
 
-    if (!msisdns.length) {
+    if (!subscriptionRows.length) {
       throw new BadRequestException('No valid MSISDN values found in file');
     }
 
-    return msisdns;
+    return subscriptionRows;
   }
 
   private resolveColumnLayout(rows: (string | number)[][]): {
     startRow: number;
-    colIndex: number;
+    msisdnColIndex: number;
+    planIdColIndex: number;
   } {
     const headerRow = rows[0].map((c) => String(c ?? '').trim());
+    const headerLower = headerRow.map((h) => h.toLowerCase());
 
-    const namedCol = headerRow.findIndex((h) =>
-      MSISDN_HEADER_NAMES.includes(h.toLowerCase()),
+    const msisdnCol = headerLower.findIndex((h) =>
+      MSISDN_HEADER_NAMES.includes(h),
     );
-    if (namedCol >= 0) {
-      return { startRow: 1, colIndex: namedCol };
+    const planIdCol = headerLower.findIndex((h) =>
+      PLAN_ID_HEADER_NAMES.includes(h),
+    );
+
+    if (msisdnCol < 0) {
+      throw new BadRequestException(
+        'Excel must include a msisdn column (headers: misdn, plan_id)',
+      );
     }
 
-    if (this.isHeaderRow(headerRow)) {
-      return { startRow: 1, colIndex: 0 };
-    }
-
-    return { startRow: 0, colIndex: 0 };
-  }
-
-  private isHeaderRow(cells: string[]): boolean {
-    const nonEmpty = cells.filter((c) => c.length > 0);
-    if (!nonEmpty.length) return false;
-
-    return nonEmpty.every((cell) => this.normalizeMsisdn(cell) === null);
+    return { startRow: 1, msisdnColIndex: msisdnCol, planIdColIndex: planIdCol };
   }
 
   private normalizeMsisdn(value: unknown): string | null {
@@ -112,5 +140,21 @@ export class MtnExcelService {
 
     if (s.length < 8 || s.length > 20) return null;
     return s;
+  }
+
+  private normalizePlanId(value: unknown): string | null {
+    if (value === undefined || value === null) return null;
+
+    let s = String(value).trim();
+    if (!s) return null;
+
+    if (/^[\d.]+e\+?\d+$/i.test(s)) {
+      const n = Number(s);
+      if (!Number.isNaN(n) && Number.isFinite(n)) {
+        s = String(Math.trunc(n));
+      }
+    }
+
+    return s.length > 0 ? s : null;
   }
 }

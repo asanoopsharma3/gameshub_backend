@@ -1,9 +1,9 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { CallbackTransaction } from '../entities/callback-transaction.entity';
 import { MtnSubscriptionBatch } from '../entities/mtn-subscription-batch.entity';
 import { MtnSubscriptionQueue } from '../entities/mtn-subscription-queue.entity';
 import { MtnTokenCache } from '../entities/mtn-token-cache.entity';
+import { SubscriptionMisdn } from '../entities/subscription-misdn.entity';
 import { MtnAuthService } from './mtn-auth.service';
 import { MtnBatchService } from './mtn-batch.service';
 import { MtnController } from './mtn.controller';
@@ -18,7 +18,7 @@ import { MtnSubscriptionService } from './mtn-subscription.service';
       MtnSubscriptionBatch,
       MtnSubscriptionQueue,
       MtnTokenCache,
-      CallbackTransaction,
+      SubscriptionMisdn,
     ]),
   ],
   controllers: [MtnController],
