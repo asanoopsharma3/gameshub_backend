@@ -2,7 +2,6 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as XLSX from 'xlsx';
-
 const MSISDN_HEADER_NAMES = [
   'msisdn',
   'misdn',
@@ -21,7 +20,6 @@ const PLAN_ID_HEADER_NAMES = [
   'subscription_id',
   'subscriptionid',
 ];
-
 export type MtnSubscriptionRow = {
   msisdn: string;
   planId: string;

@@ -4,7 +4,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { SubscriptionMisdn } from '../entities/subscription-misdn.entity';
 import { MtnAuthService } from './mtn-auth.service';
-import { MTN_SUBSCRIPTION_PAYLOAD } from './mtn.constants';
+import { MTN_PLAN_ID_TO_SUBSCRIPTION_NAME, MTN_SUBSCRIPTION_PAYLOAD } from './mtn.constants';
 
 export type MtnSubscriptionApiResponse = Record<string, unknown>;
 
@@ -86,15 +86,24 @@ export class MtnSubscriptionService {
       throw new Error('MTN_API_KEY must be set in .env');
     }
 
+    const subscriptionName =
+      MTN_PLAN_ID_TO_SUBSCRIPTION_NAME[
+        planId as keyof typeof MTN_PLAN_ID_TO_SUBSCRIPTION_NAME
+      ];
+    if (!subscriptionName) {
+      throw new Error(`Unknown plan_id ${planId}: no subscriptionName mapping`);
+    }
+
     const token = await this.authService.getAccessToken();
     const url = `${baseUrl}/v2/customers/${msisdn}/subscriptions`;
     const payload = {
       ...MTN_SUBSCRIPTION_PAYLOAD,
       subscriptionId: planId,
+      subscriptionName,
     };
 
     this.logger.debug(
-      `MTN subscribe msisdn=${msisdn} subscriptionId=${planId} transactionId=${transactionId}`,
+      `MTN subscribe msisdn=${msisdn} subscriptionId=${planId} subscriptionName=${subscriptionName} transactionId=${transactionId}`,
     );
 
     try {
@@ -186,7 +195,10 @@ export class MtnSubscriptionService {
     entity.status = extractStatusText(r);
     entity.httpStatus = str(r.httpStatus);
 
-    entity.subscriptionName = str(r.subscriptionName);
+    entity.subscriptionName =
+      MTN_PLAN_ID_TO_SUBSCRIPTION_NAME[
+        planId as keyof typeof MTN_PLAN_ID_TO_SUBSCRIPTION_NAME
+      ] ?? str(r.subscriptionName);
     entity.registrationChannel =
       str(r.registrationChannel) ??
       MTN_SUBSCRIPTION_PAYLOAD.registrationChannel;
