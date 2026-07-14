@@ -8,8 +8,12 @@ import { MtnAuthService } from './mtn-auth.service';
 import { MtnBatchService } from './mtn-batch.service';
 import { MtnController } from './mtn.controller';
 import { MtnExcelService } from './mtn-excel.service';
+import { MtnOtpController } from './mtn-otp.controller';
+import { MtnOtpService } from './mtn-otp.service';
 import { MtnQueueProcessor } from './mtn-queue.processor';
 import { MtnQueueService } from './mtn-queue.service';
+import { MtnSmsService } from './mtn-sms.service';
+import { MtnSubscribeController } from './mtn-subscribe.controller';
 import { MtnSubscriptionService } from './mtn-subscription.service';
 
 @Module({
@@ -21,9 +25,11 @@ import { MtnSubscriptionService } from './mtn-subscription.service';
       SubscriptionMisdn,
     ]),
   ],
-  controllers: [MtnController],
+  controllers: [MtnController, MtnOtpController, MtnSubscribeController],
   providers: [
     MtnAuthService,
+    MtnSmsService,
+    MtnOtpService,
     MtnSubscriptionService,
     MtnExcelService,
     MtnBatchService,

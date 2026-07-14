@@ -24,3 +24,16 @@ export const MTN_ENQUEUE_CHUNK_SIZE = 500;
 export const MTN_QUEUE_CHUNK_SIZE = 10;
 export const MTN_QUEUE_INTERVAL_MS = 5000;
 export const MTN_QUEUE_ENABLED = true;
+
+/** OTP SMS body template; `{otp}` is replaced with the generated 4-digit code. */
+export const MTN_OTP_MESSAGE_TEMPLATE =
+  'Your gsport verification code is {otp}. Do not share this code.';
+
+export const MTN_OTP_LENGTH = 4;
+export const MTN_OTP_EXPIRY_MINUTES = 10;
+
+/** How long a verified MSISDN can subscribe after OTP verify. */
+export const MTN_OTP_VERIFIED_EXPIRY_MINUTES = 30;
+
+/** Fixed OTP used when MTN_OTP_DEV_BYPASS=true (local testing only). */
+export const MTN_OTP_DEV_CODE = '1234';

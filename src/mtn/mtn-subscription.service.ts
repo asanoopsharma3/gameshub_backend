@@ -177,6 +177,20 @@ export class MtnSubscriptionService {
     }
   }
 
+  async subscribeAndSave(
+    msisdn: string,
+    transactionId: string,
+    planId: string,
+  ): Promise<{ result: MtnSubscriptionResult; subscriptionMisdnId: string }> {
+    const result = await this.subscribe(msisdn, transactionId, planId);
+    const subscriptionMisdnId = await this.saveToSubscriptionMisdn(
+      msisdn,
+      planId,
+      result,
+    );
+    return { result, subscriptionMisdnId };
+  }
+
   async saveToSubscriptionMisdn(
     msisdn: string,
     planId: string,

@@ -72,17 +72,11 @@ export class MtnQueueService {
             continue;
           }
 
-          const result = await this.subscriptionService.subscribe(
-            job.msisdn,
-            job.transactionId,
-            job.planId,
-          );
-
-          const subscriptionMisdnId =
-            await this.subscriptionService.saveToSubscriptionMisdn(
+          const { result, subscriptionMisdnId } =
+            await this.subscriptionService.subscribeAndSave(
               job.msisdn,
+              job.transactionId,
               job.planId,
-              result,
             );
 
           await this.queueRepo.update(job.id, {
